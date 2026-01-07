@@ -1853,6 +1853,7 @@ def synapses_df(
         print(f"# of synapses processed = {len(synapse_dicts)}")
         
     df = pu.dicts_to_dataframe(synapse_dicts)
+    df['branch_idx']=pd.to_numeric(df['branch_idx'], errors="coerce")
     df = nru.add_limb_branch_combined_name_to_df(
         df,
     )
