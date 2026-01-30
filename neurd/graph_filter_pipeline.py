@@ -196,9 +196,10 @@ class RedBlueSuggestions:
     Config_h01_c2 = Config
         
     @dataclass
-    class Config_minnie:
+    class Config_microns:
         n_red_points: int = 3
         n_blue_points: int = 2
+        plot_final_blue_red_points: bool = False
 
     def __init__(self,**kwargs):
         
@@ -765,10 +766,19 @@ def proofread_neuron_full_refactored(
     #     cell_type_filters = inh_filters_v8
     # else:
     #     raise ValueError(f"cell type was not excitatory nor inhibitory")
+
+    debug = True
+    if debug:
+        print(f"input arguments to proofread_neuron_full_refactored")
+        print(f"filters_dataset = {filters_dataset}")
+        print(f"cell_type = {cell_type}")
+    
     if filters is not None:
         cell_type_filters = filters
     else:
         cell_type_filters = filters_from_cell_type(cell_type,dataset=filters_dataset)
+
+    
     
     if verbose:
         print(f"Using the following filters for {cell_type} cell:")
@@ -797,8 +807,8 @@ def proofread_neuron_full_refactored(
         ml_train = ml_training_data_from_neuron_obj_and_cell_type(
             neuron_obj,
             cell_type=cell_type,
-            filters=filters,
-            dataset=filters_dataset
+            filters=cell_type_filters,
+            filters_dataset=filters_dataset
             )
         filtering_info["limb_branch_dict_to_cancel"] = ml_train
     
@@ -852,6 +862,13 @@ def ml_training_data_from_neuron_obj_and_cell_type(
     _type_
         _description_
     """
+    debug = True
+    if debug:
+        print(f"input arguments to ml_training_data_from_neuron_obj_and_cell_type")
+        print(f"filters_dataset = {filters_dataset}")
+        print(f"cell_type = {cell_type}")
+        print(f"filters = {filters}")
+        
     if filters is not None:
         cell_type_detectors = filters
     else:
