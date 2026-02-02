@@ -319,7 +319,7 @@ def whole_neuron_branch_concept_network(input_neuron,
 
         #At this point should have the desired concept network
 
-        mapping = dict([(k,f"{limb_label(limb_idx)}_{k}") for k in curr_network.nodes()])
+        mapping = dict([(k,f"{limb_label(limb_idx)}_{int(k)}") for k in curr_network.nodes()])
         curr_network = nx.relabel_nodes(curr_network,mapping)
 
         #need to get all connections from soma to limb:
