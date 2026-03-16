@@ -2883,7 +2883,7 @@ def is_apical_shaft_in_downstream_branches(limb_obj,
 
 def is_axon_in_downstream_branches(limb_obj,
                                     branch_idx,
-                                    all_downstream_nodes = False,
+                                    all_downstream_nodes = True,
                                      verbose = False,
                                    **kwargs):
     """

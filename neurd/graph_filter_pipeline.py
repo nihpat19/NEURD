@@ -22,6 +22,33 @@ class LimbBranch:
     @staticmethod
     def lb_dict(obj):
         return getattr(obj,"limb_branch_dict",obj)
+
+    @staticmethod
+    def limb_branch_dict_from_node_list(node_list,verbose = False):
+        """
+        Purpose: To convert a list of node names (ex: ["L0_5","L0_8",...]
+        to a limb branch dict (ex: dict(L0=[5,8....],...)
+    
+        Pseudocode
+        ----------
+        1. Iterate through all the nodes
+        2. split the node into limb and branch
+        3. if limb not in dictionary, add it
+        4. if not note in value of the limb, add it
+        """
+        lb = dict()
+        for n in node_list:
+            limb,node = n.split("_")
+            node = int(node)
+            if limb not in lb:
+                lb[limb] = []
+            if node not in lb[limb]:
+                lb[limb].append(node)
+    
+        if verbose:
+            print(f"Final limb branch_dict = \n{lb}")
+        return lb
+            
         
     def __init__(
         self,
