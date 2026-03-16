@@ -143,6 +143,7 @@ def combine_branches(
     verbose = True,
     common_endpoint = None,
     return_jitter_segment = False,
+    add_axon_label = True,
     ):
     """
     Purpose: To combine two branch objects together
@@ -166,7 +167,6 @@ def combine_branches(
         add_labels = False
     )
     """
-    
     for branch_obj in [branch_upstream,branch_downstream]:
         if (len(branch_obj.width_array["no_spine_median_mesh_center"]) != 
             len(branch_obj.skeletal_coordinates_upstream_to_downstream) - 1):
@@ -410,6 +410,12 @@ def combine_branches(
     # --------- adding labels -------
     if add_labels:
         b_obj.labels += b_d.labels
+    if add_axon_label:
+        if (b_d.labels is not None) and (b_obj.labels is not None) and ("axon" in b_d.labels) and ("axon" not in b_obj.labels):
+            b_obj.labels += ['axon-like','axon']
+            if verbose:
+                print(f"Added axon label to upstream")
+    
         
     if return_jitter_segment:
         return b_obj,jitter_segment
