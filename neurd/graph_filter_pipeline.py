@@ -723,6 +723,12 @@ filters_for_datasets = dict(
             dend.InhDendriteDoubleBackErrorDetector(),  
         ]
     ),
+    empty = dict(
+        excitatory = [
+        ],
+        inhibitory = [ 
+        ]
+    ),
     microns_ml = dict(
         excitatory = [
             ax.AxonOnDendriteErrorDetector(),
