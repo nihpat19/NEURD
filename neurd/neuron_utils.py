@@ -600,10 +600,45 @@ def convert_concept_network_to_directional(concept_network,
     #- for every neruong with multiple neurons in list, choose the one that has the branch width that closest matches
 
     incoming_lengths = [k for k,v in incoming_edges_to_node.items() if len(v) >= 1]
-    
-    if not suppress_disconnected_errors:
-        if len(incoming_lengths) != len(curr_limb_concept_network.nodes())-1:
-            raise Exception("after loop in directed concept graph, not all nodes have incoming edges (except starter node)")
+
+    if len(incoming_lengths) != len(curr_limb_concept_network.nodes()) - 1:
+        # Repair: nodes unreachable from starting_node have empty incoming-edge
+        # lists.  Connect each to the nearest already-reached node using endpoint
+        # midpoints as a proxy for spatial position.
+        _disc_orphans = [
+            n for n, v in incoming_edges_to_node.items()
+            if len(v) == 0 and n != starting_node
+        ]
+        if verbose:
+            print(
+                f"[repair] Directed concept graph: {len(_disc_orphans)} disconnected "
+                f"node(s) found; attaching to nearest reached node."
+            )
+        _disc_reached = [
+            n for n in curr_limb_concept_network.nodes()
+            if n == starting_node or len(incoming_edges_to_node[n]) >= 1
+        ]
+
+        def _disc_midpoint(n):
+            try:
+                eps = xu.get_node_attributes(
+                    curr_limb_concept_network, attribute_name="endpoints", node_list=[n]
+                )[0]
+                return np.asarray(eps, dtype=float).reshape(-1, 3).mean(axis=0)
+            except Exception:
+                return np.zeros(3)
+
+        _disc_reached_mids = np.array([_disc_midpoint(n) for n in _disc_reached])
+        for _disc_orph in _disc_orphans:
+            _disc_orph_mid = _disc_midpoint(_disc_orph)
+            _disc_dists = np.linalg.norm(_disc_reached_mids - _disc_orph_mid, axis=1)
+            _disc_parent = _disc_reached[int(np.argmin(_disc_dists))]
+            incoming_edges_to_node[_disc_orph] = [_disc_parent]
+            if verbose:
+                print(
+                    f"[repair]   node {_disc_orph} → parent {_disc_parent} "
+                    f"(dist={_disc_dists.min():.1f} nm)"
+                )
 
     if no_cycles == True:
         if verbose:
@@ -818,7 +853,22 @@ def branches_to_concept_network(curr_branch_skeletons,
     if verbose:
         print(f"At the start, starting_node (in terms of the skeleton, that shouldn't match the starting edge) = {starting_node}")
     if len(starting_node) != 1:
-        raise Exception(f"The number of starting nodes found was not exactly one: {starting_node}")
+        # Repair: the exact starting coordinate is absent from the downsampled
+        # skeleton graph (e.g. after branch pruning/simplification shifted the
+        # endpoint).  Snap to the nearest skeleton vertex instead.
+        _sn_graph_nodes = np.array(list(branches_graph.nodes()))
+        _sn_coords = xu.get_node_attributes(branches_graph, node_list=_sn_graph_nodes)  # (N, 3)
+        _sn_dists = np.linalg.norm(
+            _sn_coords - np.array(starting_coordinate, dtype=float), axis=1
+        )
+        _sn_idx = int(np.argmin(_sn_dists))
+        starting_node = _sn_graph_nodes[_sn_idx : _sn_idx + 1]
+        if verbose:
+            print(
+                f"[repair] starting_coordinate {starting_coordinate} not found exactly; "
+                f"snapped to nearest skeleton node {starting_node[0]} "
+                f"(dist={_sn_dists[_sn_idx]:.1f} nm)"
+            )
     #1b) Add all edges incident and their other node label to a list to check (add the first node to processed nodes list)
     incident_edges = xu.node_to_edges(branches_graph,starting_node)
     #print(f"incident_edges = {incident_edges}")
@@ -943,17 +993,55 @@ def branches_to_concept_network(curr_branch_skeletons,
             #print(f"Re-adding: {non_dom}")
             #get the endpoints attribute
             # local_node_endpoints_dict
-            
-            curr_neighbors = xu.get_neighbors(concept_network,dom)  
+
+            curr_neighbors = xu.get_neighbors(concept_network,dom)
             new_edges = np.vstack([np.ones(len(curr_neighbors))*non_dom,curr_neighbors]).T
             concept_network.add_edges_from(new_edges)
-            
+
             curr_endpoint = xu.get_node_attributes(concept_network,attribute_name="endpoints",node_list=[dom])[0]
             #print(f"curr_endpoint in add back = {curr_endpoint}")
             add_back_attribute_dict = {non_dom:dict(endpoints=curr_endpoint)}
             #print(f"To add dict = {add_back_attribute_dict}")
             xu.set_node_attributes_dict(concept_network,add_back_attribute_dict)
-            
+
+    # Repair: attach any branches whose downsampled form ended up in a disconnected
+    # component of branches_graph and were therefore never visited by the BFS.
+    _orph_present = set(concept_network.nodes())
+    _orph_missing = sorted(set(range(len(curr_branch_skeletons))) - _orph_present)
+    if _orph_missing:
+        if verbose:
+            print(
+                f"[repair] {len(_orph_missing)} orphaned branch(es) not reached by "
+                f"BFS: {_orph_missing}. Attaching to nearest concept-network node."
+            )
+        _orph_existing = list(concept_network.nodes())
+        # Midpoint of each existing node's (2, 3) endpoints array → (N, 3)
+        _orph_existing_mids = np.array([
+            np.asarray(
+                xu.get_node_attributes(
+                    concept_network, attribute_name="endpoints", node_list=[_n]
+                )[0],
+                dtype=float,
+            ).reshape(-1, 3).mean(axis=0)
+            for _n in _orph_existing
+        ])
+        for _orph in _orph_missing:
+            _orph_pts = np.asarray(curr_branch_skeletons[_orph], dtype=float).reshape(-1, 3)
+            _orph_mid = _orph_pts.mean(axis=0)
+            _orph_dists = np.linalg.norm(_orph_existing_mids - _orph_mid, axis=1)
+            _orph_nearest = _orph_existing[int(np.argmin(_orph_dists))]
+            try:
+                _orph_eps = sk.find_branch_endpoints(curr_branch_skeletons[_orph])
+            except Exception:
+                _orph_eps = np.array([_orph_pts[0], _orph_pts[-1]])
+            concept_network.add_edge(_orph, _orph_nearest)
+            xu.set_node_attributes_dict(concept_network, {_orph: dict(endpoints=_orph_eps)})
+            if verbose:
+                print(
+                    f"[repair]   branch {_orph} → node {_orph_nearest} "
+                    f"(midpoint dist={_orph_dists.min():.1f} nm)"
+                )
+
     return concept_network
 
 
